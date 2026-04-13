@@ -3,9 +3,9 @@
 ## Setup
 
 - Make sure that battery of vexbrain and controller are charged.
-- connect battery to brain.
+- Connect battery to brain.
 - Place raspberry pi and its battery onto the front of the robot so the camera is facing forward.
-- Turn on raspberry pi.
+- Turn on raspberry pi & run 'python3 bot_commands.py'.
 - Turn on brain and connect controller and run the program.
 
 ## Vex operations
