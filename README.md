@@ -20,11 +20,13 @@
 
 ## Pi operations
 
-- After creating the loop that you would like send /begin on telegram to the pi to turn on the camera.
-- If the camera detects a person with a certainty of 45% a capture of what the camera sees will be taken and sent to the pi so the user can see what the pi is saying.
-- On the telegram the user is able to message the word save to keep a photo of the image in the chat and if the user sends ok instead then it deletes the image.
-- User is able to send /status to get a live status on the robots current conditions.
-- User is able to send /capture to take a photo if they want to take a photo of something at any time.
+- After creating the loop that you would like send '/begin' on Telegram to tell the pi to turn on the camera.
+- If the camera detects a person with a certainty of 45% a capture of what the camera sees will be taken and sent to the Telegram chat so the user can see what the security alert is.
+- On the telegram the user is able to message the word 'save' to keep the photo of the image in the chat and if the user sends 'ok' instead then it deletes the image and allows the user to continue.
+- User is able to send '/status' to get a live status on the robots current conditions.
+- User is able to send '/capture' to take a photo if they want to take a photo of something at any time.
+- They can also ask '/help' for a list of commands and help on how the pi is working.
 
 
 ## References
+- For the person detection on the PI we use a pretrained model that uses MobileNetSSD, here is a link to that Github repo: https://github.com/nikmart/pi-object-detection
