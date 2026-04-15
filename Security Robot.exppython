@@ -1,1 +1,369 @@
-{"mode":"Text","hardwareTarget":"brain","textContent":"#region VEXcode Generated Robot Configuration\nfrom vex import *\n\nbrain = Brain()\ncontroller = Controller()\nbrain_inertial = Inertial()\nmotor_left = Motor(Ports.PORT6, False)\nmotor_right = Motor(Ports.PORT10, True)\ncurrent_speed_multiplier = 0.5 #default speed is set at half just cause it makes the path a bit more accurate can be increased by buttons\n\n# ============================================\n# MOTOR CONTROL FUNCTIONS\n# ============================================\ndef move_robot(left_speed, right_speed):\n    scaled_left = int(left_speed * current_speed_multiplier)\n    scaled_right = int(right_speed * current_speed_multiplier)\n    motor_left.set_velocity(scaled_left, PERCENT)\n    motor_right.set_velocity(scaled_right, PERCENT)\n    motor_left.spin(FORWARD)\n    motor_right.spin(FORWARD)\n\ndef stop_robot():\n    motor_left.stop()\n    motor_right.stop()\n\ndef drive_from_controller():\n    left_speed, right_speed = get_motor_speeds()\n    move_robot(left_speed, right_speed)\n\ndef get_motor_speeds():\n    #gets right and left joystick positiosn\n    forward_speed = controller.axis2.position()\n    turn_speed = controller.axis3.position()\n    \n    #tolerance incase upon joystick release it does not go back to exactly 0 to avoid drift\n    if abs(forward_speed) < 5:\n        forward_speed = 0\n    if abs(turn_speed) < 5:\n        turn_speed = 0\n    \n    #calculation for wheel spin, forward speed = right joystick press, left joystick = turn speed\n    #and it allows for turning by adding to one wheel and minusing to another e.g\n    #just pressing forward sets both wheels to 50 or something which causes the turn speed is set to 0 so both wheels move the same\n    left_speed = forward_speed + turn_speed\n    right_speed = forward_speed - turn_speed\n    \n    #put a lock on the speed so the motor doesnt do any turns that could potentially damage it\n    left_speed = max(-100, min(100, left_speed))\n    right_speed = max(-100, min(100, right_speed))\n    \n    return left_speed, right_speed\n\n# ============================================\n# RECORDING FUNCTIONS\n# ============================================\ndef record_path(movement_log):\n    #show that recording is happening through screen\n    movement_log.clear()\n    brain.screen.clear_screen()\n    brain.screen.set_cursor(1, 1)\n    brain.screen.print(\"RECORDING\")\n    brain.screen.set_cursor(2, 1)\n    brain.screen.print(\"Press L2 to stop\")\n\n    #unless stop record button is pressed then the robot will continue recording its movements \n    while not controller.buttonL2.pressing():\n        #record the current speed that each wheel is getting at then apply it to move the robot\n        left_speed, right_speed = get_motor_speeds()\n        move_robot(left_speed, right_speed)\n        \n        #record what each wheels movement was at each frame\n        movement_log.append({\n            'left_speed': left_speed,\n            'right_speed': right_speed,\n            'time': brain.timer.time()\n        })\n        #little waiting time cap so the movement log doesnt have too much data in it \n        wait(20, MSEC)\n\n    stop_robot()\n    brain.screen.clear_screen()\n    brain.screen.set_cursor(1, 1)\n    brain.screen.print(\"RECORDING DONE\")\n    brain.screen.set_cursor(2, 1)\n    #show how many frames were recorded\n    brain.screen.print(str(len(movement_log)) + \" frames\")\n    wait(100, MSEC)\n    return movement_log\n\n# ============================================\n# PLAYBACK FUNCTIONS\n# ============================================\ndef play_forwards(movement_log):\n    #little error catch\n    if not movement_log:\n        return False\n\n    brain.screen.clear_screen()\n    brain.screen.set_cursor(1, 1)\n    brain.screen.print(\"PLAYING FORWARD\")\n    brain.screen.set_cursor(8, 1)\n    brain.screen.print(\"Press A to pause\")\n\n    start_time = brain.timer.time()\n    first_time = movement_log[0]['time']\n\n    #checks on every move if stop is pressed\n    for move in movement_log:\n        if controller.buttonL1.pressing():\n            stop_robot()\n            return False\n\n        target_time = start_time + (move['time'] - first_time)\n\n        while brain.timer.time() < target_time:\n            if controller.buttonA.pressing():\n                check_pause()\n                start_time = brain.timer.time() - (move['time'] - first_time)\n                target_time = start_time + (move['time'] - first_time)\n            wait(10, MSEC)\n\n        move_robot(move['left_speed'], move['right_speed'])\n\n    stop_robot()\n    wait(500, MSEC)\n    return True\n\ndef play_backwards(movement_log):\n    if not movement_log:\n        return False\n\n    brain.screen.clear_screen()\n    brain.screen.set_cursor(1, 1)\n    brain.screen.print(\"PLAYING BACKWARD\")\n    brain.screen.set_cursor(8, 1)\n    brain.screen.print(\"Hold A to pause\")\n\n    #calculates the total duration by looking at the time of the first log and time of the last one\n    total_duration = movement_log[-1]['time'] - movement_log[0]['time']\n    #creates a start time to use as an absolute reference so moves can be played correctly on time\n    start_time = brain.timer.time()\n\n    #go backwards through each part of the movement log step by step and stop if l1 is pressed\n    for i in range(len(movement_log) - 1, -1, -1):\n        if controller.buttonL1.pressing():\n            stop_robot()\n            return False\n        #calculation for when this move should happen for the path reversed\n        move = movement_log[i]\n        reverse_time = total_duration - (move['time'] - movement_log[0]['time'])\n        target_time = start_time + reverse_time\n\n        #handles pause so the path can resume from where it was last at\n        while brain.timer.time() < target_time:\n            if controller.buttonA.pressing():\n                check_pause()\n                start_time = brain.timer.time() - reverse_time\n                target_time = start_time + reverse_time\n            wait(10, MSEC)\n\n        #code for inverting turns on way back e.g a left turn becomes a righ turn\n        left_orig = move['left_speed']\n        right_orig = move['right_speed']\n\n        #left turn\n        if left_orig > 0 and right_orig < 0:\n            new_left = -left_orig\n            new_right = -right_orig\n        #right turn\n        elif left_orig < 0 and right_orig > 0:\n            new_left = -left_orig\n            new_right = -right_orig\n        #backwards and forwards stay the same\n        else:\n            new_left = left_orig\n            new_right = right_orig\n\n        move_robot(new_left, new_right)\n\n    stop_robot()\n    wait(500, MSEC)\n    return True\n\ndef turn_180_degrees():\n    \"\"\"Turn robot 180 degrees to the right - can be stopped with L1\"\"\"\n    brain.screen.clear_screen()\n    brain.screen.set_cursor(1, 1)\n    brain.screen.print(\"TURNING 180\")\n    brain.screen.set_cursor(4, 1)\n    brain.screen.print(\"Press L1 to stop\")\n    \n    #gets the direction the robot is heading at end/start of the path\n    start_heading = brain_inertial.heading()\n    target = start_heading + 180\n    #makes it so that degrees cant go past 360 so 367 would go back to 7 degrees\n    if target >= 360:\n        target -= 360\n    \n    #runs until target is reached\n    while True:\n        #if l1 is pressed it breaks the loop\n        if controller.buttonL1.pressing():\n            stop_robot()\n            brain.screen.set_cursor(5, 1)\n            brain.screen.print(\"TURN STOPPED   \")\n            wait(500, MSEC)\n            return False  # Signal turn was interrupted\n\n        #gets the current degree every frame\n        current = brain_inertial.heading()\n        \n        #calculates distance remaining\n        remaining = target - current\n        if remaining < 0:\n            remaining += 360\n        \n        #show how much of the turn is left\n        brain.screen.set_cursor(2, 1)\n        brain.screen.print(\"Remaining: \" + str(abs(round(remaining, 1))) + \" deg\")\n        \n        #stop 3 degrees early to account for leftover wheelspin\n        if remaining <= 3:\n            break\n        \n        #slows down when gets 20 degrees closer to lessen leftover spin\n        if remaining <= 20:\n            current_speed = 5\n        else:\n            current_speed = 15\n        \n        #always does a right turn \n        motor_left.spin(FORWARD, current_speed, PERCENT)\n        motor_right.spin(REVERSE, current_speed, PERCENT)\n        \n        wait(20, MSEC)\n    \n    #stop motors and let momentum settle\n    stop_robot()\n    wait(500, MSEC)\n    \n    #displays the final accuracy and how many degrees off the robot was at the end from perfect\n    final = brain_inertial.heading()\n    final_error = abs(target - final)\n    if final_error > 360 - final_error:\n        final_error = 360 - final_error\n    \n    brain.screen.set_cursor(3, 1)\n    brain.screen.print(\"OFF BY: \" + str(round(final_error, 1)) + \" deg\")\n    wait(1000, MSEC)\n    return True\n\ndef check_pause():\n    #button has to be held\n    if controller.buttonA.pressing():\n        stop_robot()\n        brain.screen.set_cursor(8, 1)\n        brain.screen.print(\"PAUSED - Press A\")\n        while not controller.buttonA.pressing():\n            wait(100, MSEC)\n        wait(200, MSEC)\n        #clear 8 on the screen\n        brain.screen.set_cursor(8, 1)\n        brain.screen.print(\"                \")\n        return True\n    return False\n\ndef play_loop(movement_log):\n    #little error catch\n    if not movement_log:\n        brain.screen.clear_screen()\n        brain.screen.set_cursor(1, 1)\n        brain.screen.print(\"NO RECORDING\")\n        wait(1000, MSEC)\n        menu()\n        return\n\n    brain.screen.clear_screen()\n    brain.screen.set_cursor(1, 1)\n    brain.screen.print(\"LOOPING\")\n    brain.screen.set_cursor(2, 1)\n    brain.screen.print(\"Press L1 to stop\")\n    brain.screen.set_cursor(3, 1)\n    brain.screen.print(\"Press A to pause\")\n    loop_active = True\n\n    #loop plays until l1 is pressed\n    while loop_active and not controller.buttonL1.pressing():\n        #turns around at the start of the loop\n        turn_180_degrees()\n        \n        #the if nots here are for the play functions to allow l1 to end the loop when they are\n        if not play_backwards(movement_log):\n            loop_active = False\n            break\n            \n        turn_180_degrees()\n        \n        if not play_forwards(movement_log):\n            loop_active = False\n            break\n\n    stop_robot()\n    movement_log.clear()\n    brain.screen.clear_screen()\n    brain.screen.set_cursor(1, 1)\n    menu()\n\n# ============================================\n# MAIN PROGRAM\n# ============================================\ndef menu():\n    brain.screen.clear_screen()\n    brain.screen.set_cursor(1, 1)\n    brain.screen.print(\"R1: Record\")\n    brain.screen.set_cursor(2, 1)\n    brain.screen.print(\"R2: Play Loop\")\n    brain.screen.set_cursor(3, 1)\n    brain.screen.print(\"L1: Stop Loop\")\n    brain.screen.set_cursor(4, 1)\n    brain.screen.print(\"L2: Stop Record\")\n    brain.screen.set_cursor(5, 1)\n    brain.screen.print(\"Up/Down: Speed\")\n\ndef main():\n    global current_speed_multiplier\n    movement_log = []\n\n    #calibrate at the start to make sure that degree tracking is proper\n    brain.screen.clear_screen()\n    brain.screen.set_cursor(1, 1)\n    brain.screen.print(\"CALIBRATING...\")\n    brain_inertial.calibrate()\n    wait(3000, MSEC)\n    menu()\n\n    while True:\n        #these two if statements are for increasing speed\n        if controller.buttonUp.pressing() and not movement_log:\n            current_speed_multiplier = min(1.0, current_speed_multiplier + 0.1)\n            #round so theres not a decimal error\n            current_speed_multiplier = round(current_speed_multiplier, 1)\n            brain.screen.set_cursor(5, 1)\n            brain.screen.print(\"                                \")\n            brain.screen.set_cursor(5, 1)\n            brain.screen.print(\"Speed: \" + str(int(current_speed_multiplier * 100)) + \"%  \")\n            wait(200, MSEC)\n        if controller.buttonDown.pressing() and not movement_log:\n            current_speed_multiplier = max(0.2, current_speed_multiplier - 0.1)\n            current_speed_multiplier = round(current_speed_multiplier, 1) \n            brain.screen.set_cursor(5, 1)\n            brain.screen.print(\"                                \")\n            brain.screen.set_cursor(5, 1)\n            brain.screen.print(\"Speed: \" + str(int(current_speed_multiplier * 100)) + \"%  \")\n            wait(200, MSEC)\n\n        #record\n        if controller.buttonR1.pressing():\n            movement_log = record_path(movement_log)\n            wait(100, MSEC)\n\n        #play path\n        elif controller.buttonR2.pressing():\n            play_loop(movement_log)\n\n        #otherwise just drive\n        else:\n            drive_from_controller()\n\nmain()","textLanguage":"python","robotConfig":[],"slot":0,"platform":"EXP","sdkVersion":"20240802.15.00.00","appVersion":"4.64.0","fileFormat":"2.0.0","targetBrainGen":"First","v5SoundsEnabled":false,"aiVisionSettings":{"colors":[],"codes":[],"tags":true,"AIObjects":true,"AIObjectModel":[],"aiModelDropDownValue":null}}
+#region VEXcode Generated Robot Configuration
+from vex import *
+
+brain = Brain()
+controller = Controller()
+brain_inertial = Inertial()
+motor_left = Motor(Ports.PORT6, False)
+motor_right = Motor(Ports.PORT10, True)
+current_speed_multiplier = 0.5 #default speed is set at half just cause it makes the path a bit more accurate can be increased by buttons
+
+# ============================================
+# MOTOR CONTROL FUNCTIONS
+# ============================================
+def move_robot(left_speed, right_speed):
+    scaled_left = int(left_speed * current_speed_multiplier)
+    scaled_right = int(right_speed * current_speed_multiplier)
+    motor_left.set_velocity(scaled_left, PERCENT)
+    motor_right.set_velocity(scaled_right, PERCENT)
+    motor_left.spin(FORWARD)
+    motor_right.spin(FORWARD)
+
+def stop_robot():
+    motor_left.stop()
+    motor_right.stop()
+
+def drive_from_controller():
+    left_speed, right_speed = get_motor_speeds()
+    move_robot(left_speed, right_speed)
+
+def get_motor_speeds():
+    #gets right and left joystick positiosn
+    forward_speed = controller.axis2.position()
+    turn_speed = controller.axis3.position()
+    
+    #tolerance incase upon joystick release it does not go back to exactly 0 to avoid drift
+    if abs(forward_speed) < 5:
+        forward_speed = 0
+    if abs(turn_speed) < 5:
+        turn_speed = 0
+    
+    #calculation for wheel spin, forward speed = right joystick press, left joystick = turn speed
+    #and it allows for turning by adding to one wheel and minusing to another e.g
+    #just pressing forward sets both wheels to 50 or something which causes the turn speed is set to 0 so both wheels move the same
+    left_speed = forward_speed + turn_speed
+    right_speed = forward_speed - turn_speed
+    
+    #put a lock on the speed so the motor doesnt do any turns that could potentially damage it
+    left_speed = max(-100, min(100, left_speed))
+    right_speed = max(-100, min(100, right_speed))
+    
+    return left_speed, right_speed
+
+# ============================================
+# RECORDING FUNCTIONS
+# ============================================
+def record_path(movement_log):
+    #show that recording is happening through screen
+    movement_log.clear()
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("RECORDING")
+    brain.screen.set_cursor(2, 1)
+    brain.screen.print("Press L2 to stop")
+
+    #unless stop record button is pressed then the robot will continue recording its movements 
+    while not controller.buttonL2.pressing():
+        #record the current speed that each wheel is getting at then apply it to move the robot
+        left_speed, right_speed = get_motor_speeds()
+        move_robot(left_speed, right_speed)
+        
+        #record what each wheels movement was at each frame
+        movement_log.append({
+            'left_speed': left_speed,
+            'right_speed': right_speed,
+            'time': brain.timer.time()
+        })
+        #little waiting time cap so the movement log doesnt have too much data in it 
+        wait(20, MSEC)
+
+    stop_robot()
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("RECORDING DONE")
+    brain.screen.set_cursor(2, 1)
+    #show how many frames were recorded
+    brain.screen.print(str(len(movement_log)) + " frames")
+    wait(100, MSEC)
+    return movement_log
+
+# ============================================
+# PLAYBACK FUNCTIONS
+# ============================================
+def play_forwards(movement_log):
+    #little error catch
+    if not movement_log:
+        return False
+
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("PLAYING FORWARD")
+    brain.screen.set_cursor(8, 1)
+    brain.screen.print("Press A to pause")
+
+    start_time = brain.timer.time()
+    first_time = movement_log[0]['time']
+
+    #checks on every move if stop is pressed
+    for move in movement_log:
+        if controller.buttonL1.pressing():
+            stop_robot()
+            return False
+
+        target_time = start_time + (move['time'] - first_time)
+
+        while brain.timer.time() < target_time:
+            if controller.buttonA.pressing():
+                check_pause()
+                start_time = brain.timer.time() - (move['time'] - first_time)
+                target_time = start_time + (move['time'] - first_time)
+            wait(10, MSEC)
+
+        move_robot(move['left_speed'], move['right_speed'])
+
+    stop_robot()
+    wait(500, MSEC)
+    return True
+
+def play_backwards(movement_log):
+    if not movement_log:
+        return False
+
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("PLAYING BACKWARD")
+    brain.screen.set_cursor(8, 1)
+    brain.screen.print("Hold A to pause")
+
+    #calculates the total duration by looking at the time of the first log and time of the last one
+    total_duration = movement_log[-1]['time'] - movement_log[0]['time']
+    #creates a start time to use as an absolute reference so moves can be played correctly on time
+    start_time = brain.timer.time()
+
+    #go backwards through each part of the movement log step by step and stop if l1 is pressed
+    for i in range(len(movement_log) - 1, -1, -1):
+        if controller.buttonL1.pressing():
+            stop_robot()
+            return False
+        #calculation for when this move should happen for the path reversed
+        move = movement_log[i]
+        reverse_time = total_duration - (move['time'] - movement_log[0]['time'])
+        target_time = start_time + reverse_time
+
+        #handles pause so the path can resume from where it was last at
+        while brain.timer.time() < target_time:
+            if controller.buttonA.pressing():
+                check_pause()
+                start_time = brain.timer.time() - reverse_time
+                target_time = start_time + reverse_time
+            wait(10, MSEC)
+
+        #code for inverting turns on way back e.g a left turn becomes a righ turn
+        left_orig = move['left_speed']
+        right_orig = move['right_speed']
+
+        #left turn
+        if left_orig > 0 and right_orig < 0:
+            new_left = -left_orig
+            new_right = -right_orig
+        #right turn
+        elif left_orig < 0 and right_orig > 0:
+            new_left = -left_orig
+            new_right = -right_orig
+        #backwards and forwards stay the same
+        else:
+            new_left = left_orig
+            new_right = right_orig
+
+        move_robot(new_left, new_right)
+
+    stop_robot()
+    wait(500, MSEC)
+    return True
+
+def turn_180_degrees():
+    """Turn robot 180 degrees to the right - can be stopped with L1"""
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("TURNING 180")
+    brain.screen.set_cursor(4, 1)
+    brain.screen.print("Press L1 to stop")
+    
+    #gets the direction the robot is heading at end/start of the path
+    start_heading = brain_inertial.heading()
+    target = start_heading + 180
+    #makes it so that degrees cant go past 360 so 367 would go back to 7 degrees
+    if target >= 360:
+        target -= 360
+    
+    #runs until target is reached
+    while True:
+        #if l1 is pressed it breaks the loop
+        if controller.buttonL1.pressing():
+            stop_robot()
+            brain.screen.set_cursor(5, 1)
+            brain.screen.print("TURN STOPPED   ")
+            wait(500, MSEC)
+            return False  # Signal turn was interrupted
+
+        #gets the current degree every frame
+        current = brain_inertial.heading()
+        
+        #calculates distance remaining
+        remaining = target - current
+        if remaining < 0:
+            remaining += 360
+        
+        #show how much of the turn is left
+        brain.screen.set_cursor(2, 1)
+        brain.screen.print("Remaining: " + str(abs(round(remaining, 1))) + " deg")
+        
+        #stop 3 degrees early to account for leftover wheelspin
+        if remaining <= 3:
+            break
+        
+        #slows down when gets 20 degrees closer to lessen leftover spin
+        if remaining <= 20:
+            current_speed = 5
+        else:
+            current_speed = 15
+        
+        #always does a right turn 
+        motor_left.spin(FORWARD, current_speed, PERCENT)
+        motor_right.spin(REVERSE, current_speed, PERCENT)
+        
+        wait(20, MSEC)
+    
+    #stop motors and let momentum settle
+    stop_robot()
+    wait(500, MSEC)
+    
+    #displays the final accuracy and how many degrees off the robot was at the end from perfect
+    final = brain_inertial.heading()
+    final_error = abs(target - final)
+    if final_error > 360 - final_error:
+        final_error = 360 - final_error
+    
+    brain.screen.set_cursor(3, 1)
+    brain.screen.print("OFF BY: " + str(round(final_error, 1)) + " deg")
+    wait(1000, MSEC)
+    return True
+
+def check_pause():
+    #button has to be held
+    if controller.buttonA.pressing():
+        stop_robot()
+        brain.screen.set_cursor(8, 1)
+        brain.screen.print("PAUSED - Press A")
+        while not controller.buttonA.pressing():
+            wait(100, MSEC)
+        wait(200, MSEC)
+        #clear 8 on the screen
+        brain.screen.set_cursor(8, 1)
+        brain.screen.print("                ")
+        return True
+    return False
+
+def play_loop(movement_log):
+    #little error catch
+    if not movement_log:
+        brain.screen.clear_screen()
+        brain.screen.set_cursor(1, 1)
+        brain.screen.print("NO RECORDING")
+        wait(1000, MSEC)
+        menu()
+        return
+
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("LOOPING")
+    brain.screen.set_cursor(2, 1)
+    brain.screen.print("Press L1 to stop")
+    brain.screen.set_cursor(3, 1)
+    brain.screen.print("Press A to pause")
+    loop_active = True
+
+    #loop plays until l1 is pressed
+    while loop_active and not controller.buttonL1.pressing():
+        #turns around at the start of the loop
+        turn_180_degrees()
+        
+        #the if nots here are for the play functions to allow l1 to end the loop when they are
+        if not play_backwards(movement_log):
+            loop_active = False
+            break
+            
+        turn_180_degrees()
+        
+        if not play_forwards(movement_log):
+            loop_active = False
+            break
+
+    stop_robot()
+    movement_log.clear()
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    menu()
+
+# ============================================
+# MAIN PROGRAM
+# ============================================
+def menu():
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("R1: Record")
+    brain.screen.set_cursor(2, 1)
+    brain.screen.print("R2: Play Loop")
+    brain.screen.set_cursor(3, 1)
+    brain.screen.print("L1: Stop Loop")
+    brain.screen.set_cursor(4, 1)
+    brain.screen.print("L2: Stop Record")
+    brain.screen.set_cursor(5, 1)
+    brain.screen.print("Up/Down: Speed")
+
+def main():
+    global current_speed_multiplier
+    movement_log = []
+
+    #calibrate at the start to make sure that degree tracking is proper
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("CALIBRATING...")
+    brain_inertial.calibrate()
+    wait(3000, MSEC)
+    menu()
+
+    while True:
+        #these two if statements are for increasing speed
+        if controller.buttonUp.pressing() and not movement_log:
+            current_speed_multiplier = min(1.0, current_speed_multiplier + 0.1)
+            #round so theres not a decimal error
+            current_speed_multiplier = round(current_speed_multiplier, 1)
+            brain.screen.set_cursor(5, 1)
+            brain.screen.print("                                ")
+            brain.screen.set_cursor(5, 1)
+            brain.screen.print("Speed: " + str(int(current_speed_multiplier * 100)) + "%  ")
+            wait(200, MSEC)
+        if controller.buttonDown.pressing() and not movement_log:
+            current_speed_multiplier = max(0.2, current_speed_multiplier - 0.1)
+            current_speed_multiplier = round(current_speed_multiplier, 1) 
+            brain.screen.set_cursor(5, 1)
+            brain.screen.print("                                ")
+            brain.screen.set_cursor(5, 1)
+            brain.screen.print("Speed: " + str(int(current_speed_multiplier * 100)) + "%  ")
+            wait(200, MSEC)
+
+        #record
+        if controller.buttonR1.pressing():
+            movement_log = record_path(movement_log)
+            wait(100, MSEC)
+
+        #play path
+        elif controller.buttonR2.pressing():
+            play_loop(movement_log)
+
+        #otherwise just drive
+        else:
+            drive_from_controller()
+
+main()
