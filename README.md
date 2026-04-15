@@ -18,7 +18,7 @@
 - If you wish to pause the robot momentarily hold down the pause button and when you wish for it to continue let go of the button.
 - When you want to end the loop press L2 on the robot and you will be given back control to drive around.
 
-## Pi operations
+## Pi & Telegram operations
 
 - After creating the loop that you would like send '/begin' on Telegram to tell the pi to turn on the camera detection and also '/stop' to end it.
 - If the camera detects a person with a certainty of 45% a capture of what the camera sees will be taken and sent to the Telegram chat so the user can see what the security alert is.
