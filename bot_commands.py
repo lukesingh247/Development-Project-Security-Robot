@@ -6,7 +6,7 @@ import subprocess
 TELEGRAM_TOKEN = "" # Check detect.py
 TELEGRAM_CHAT_ID = ""
 
-DETECTION_SCRIPT = "/home/john/person_detection/detect.py"
+DETECTION_SCRIPT = "/home/john/person_detection/detect.py" #Similar to token, edit this for your file path
 PYTHON_PATH = "/home/john/robot-env/bin/python3"
 
 last_update_id = 0
