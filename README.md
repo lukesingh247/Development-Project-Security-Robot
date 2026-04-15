@@ -30,3 +30,6 @@
 
 ## References
 - For the person detection on the PI we use a pretrained model that uses MobileNetSSD, here is a link to that Github repo: https://github.com/nikmart/pi-object-detection
+- For creating the physical car for the robot it was based on this model https://instructions.online/?id=4095-exp%20speed%20build
+- For designing the joystick controls to best suit the robot we learned about arcade drive from this website https://xiaoxiae.github.io/Robotics-Simplified-Website/drivetrain-control/arcade-drive/
+
