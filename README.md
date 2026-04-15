@@ -35,6 +35,6 @@
 ## AI Transparency Statement
 - We have used level 4 AI for Enhancing in our work.
 - We used AI for debugging.
-- We engaged in the work by having Luke work on all of the code for the vexes brain and Felix work on the all of the code
+- We engaged in the work by having Luke work on all of the code for the vexes brain and Felix work on all of the code
 on the raspberry pi. We used AI at points where we had tried multiple times to find out what was causing specific issues
 as AI provided us with a different perspective that could sometimes help us find out what was causing us problems.
