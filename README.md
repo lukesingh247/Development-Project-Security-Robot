@@ -27,9 +27,14 @@
 - User is able to send '/capture' to take a photo if they want to take a photo of something at any time.
 - They can also ask '/help' for a list of commands and help on how the pi is working.
 
-
 ## References
 - For the person detection on the PI we use a pretrained model that uses MobileNetSSD, here is a link to that Github repo: https://github.com/nikmart/pi-object-detection
 - For creating the physical car for the robot it was based on this model https://instructions.online/?id=4095-exp%20speed%20build
 - For designing the joystick controls to best suit the robot we learned about arcade drive from this website https://xiaoxiae.github.io/Robotics-Simplified-Website/drivetrain-control/arcade-drive/
 
+## AI Transparency Statement
+- We have used level 4 AI for Enhancing in our work.
+- We used AI for debugging.
+- We engaged in the work by having Luke work on all of the code for the vexes brain and Felix work on the all of the code
+on the raspberry pi. We used AI at points where we had tried multiple times to find out what was causing specific issues
+as AI provided us with a different perspective that could sometimes help us find out what was causing us problems.
