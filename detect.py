@@ -19,7 +19,7 @@ capture_image_path = None
 TELEGRAM_TOKEN = "" # Sign up to Telegram's Botfather and create a token there 
 TELEGRAM_CHAT_ID = "" # Do a /getUpdates request with the bot and get the chat id
 
-PERSON_CLASS_ID = 15 # Person is the class id in the model we are using
+PERSON_CLASS_ID = 15 # Person is this class id in the model we are using
 
 # TELEGRAM FUNCTIONS
 def send_telegram_alert(image_path):
